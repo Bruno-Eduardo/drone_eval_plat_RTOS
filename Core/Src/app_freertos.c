@@ -29,13 +29,15 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#include "stdio.h"
+#include "MPU6050.h"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,12 +49,17 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for Task1 */
-osThreadId_t Task1Handle;
-const osThreadAttr_t Task1_attributes = {
-  .name = "Task1",
+/* Definitions for defaultTask */
+osThreadId_t defaultTaskHandle;
+uint32_t defaultTaskBuffer[ 3000 ];
+osStaticThreadDef_t defaultTaskControlBlock;
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .stack_mem = &defaultTaskBuffer[0],
+  .stack_size = sizeof(defaultTaskBuffer),
+  .cb_mem = &defaultTaskControlBlock,
+  .cb_size = sizeof(defaultTaskControlBlock),
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -60,7 +67,7 @@ const osThreadAttr_t Task1_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void StartTask1(void *argument);
+void defaultTaskFunc(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -91,8 +98,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of Task1 */
-  Task1Handle = osThreadNew(StartTask1, NULL, &Task1_attributes);
+  /* creation of defaultTask */
+  defaultTaskHandle = osThreadNew(defaultTaskFunc, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -104,22 +111,31 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_StartTask1 */
+/* USER CODE BEGIN Header_defaultTaskFunc */
 /**
-  * @brief  Function implementing the Task1 thread.
+  * @brief  Function implementing the defaultTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartTask1 */
-void StartTask1(void *argument)
+/* USER CODE END Header_defaultTaskFunc */
+void defaultTaskFunc(void *argument)
 {
-  /* USER CODE BEGIN StartTask1 */
+  /* USER CODE BEGIN defaultTaskFunc */
+  MPU6050_Initialization();
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    printf("up....\r\n");
+    if(MPU6050_DataReady() == 1)
+    {
+      MPU6050_ProcessData(&MPU6050);
+      //printf("%f, %f, %f\n", MPU6050.acc_x, MPU6050.acc_y, MPU6050.acc_z);
+      //printf("%f, %f, %f\n", MPU6050.gyro_x, MPU6050.gyro_y, MPU6050.gyro_z);
+      printf("%d, %d, %d\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
+    }
+    osDelay(1000);
   }
-  /* USER CODE END StartTask1 */
+  /* USER CODE END defaultTaskFunc */
 }
 
 /* Private application code --------------------------------------------------*/
