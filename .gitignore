@@ -1,3 +1,11 @@
+# CubeIDE generated
+.cproject
+.gitignore
+.mxproject
+.settings/stm32cubeide.project.prefs
+Debug/
+rtos_drone Debug.launch
+
 # Prerequisites
 *.d
 
