@@ -38,15 +38,41 @@ typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PD */
 #include "stdio.h"
 #include "MPU6050.h"
+#include "tim.h"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+void microDelay (uint16_t delay)
+{
+  int a = 0;
+  __HAL_TIM_SET_COUNTER(&htim1, 0);
+  do{
+    a = __HAL_TIM_GET_COUNTER(&htim1);
+  }while (a < delay);
+}
+
+void step (int steps, uint8_t direction, uint16_t delay)
+{
+  int x;
+  if (direction == 0)
+    HAL_GPIO_WritePin(M2_pin1_GPIO_Port, M1_pin1_Pin, 1);
+  else
+    HAL_GPIO_WritePin(M2_pin1_GPIO_Port, M1_pin1_Pin, 0);
+  for(x=0; x<steps; x=x+1)
+  {
+    HAL_GPIO_WritePin(M2_pin2_GPIO_Port, M1_pin2_Pin, 1);
+    microDelay(delay);
+    HAL_GPIO_WritePin(M2_pin2_GPIO_Port, M1_pin2_Pin, 0);
+    microDelay(delay);
+  }
+}
+
+
 
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
@@ -61,6 +87,13 @@ const osThreadAttr_t defaultTask_attributes = {
   .cb_size = sizeof(defaultTaskControlBlock),
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for myTask02 */
+osThreadId_t myTask02Handle;
+const osThreadAttr_t myTask02_attributes = {
+  .name = "myTask02",
+  .priority = (osPriority_t) osPriorityLow,
+  .stack_size = 128 * 4
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -68,6 +101,7 @@ const osThreadAttr_t defaultTask_attributes = {
 /* USER CODE END FunctionPrototypes */
 
 void defaultTaskFunc(void *argument);
+void StartTask02(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -90,7 +124,7 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
+  HAL_TIM_Base_Start(&htim1);
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -100,6 +134,9 @@ void MX_FREERTOS_Init(void) {
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(defaultTaskFunc, NULL, &defaultTask_attributes);
+
+  /* creation of myTask02 */
+  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -121,21 +158,48 @@ void MX_FREERTOS_Init(void) {
 void defaultTaskFunc(void *argument)
 {
   /* USER CODE BEGIN defaultTaskFunc */
-  MPU6050_Initialization();
+//  MPU6050_Initialization();
   /* Infinite loop */
   for(;;)
   {
     printf("up....\r\n");
-    if(MPU6050_DataReady() == 1)
-    {
-      MPU6050_ProcessData(&MPU6050);
-      //printf("%f, %f, %f\n", MPU6050.acc_x, MPU6050.acc_y, MPU6050.acc_z);
-      //printf("%f, %f, %f\n", MPU6050.gyro_x, MPU6050.gyro_y, MPU6050.gyro_z);
-      printf("%d, %d, %d\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
-    }
+//    if(MPU6050_DataReady() == 1)
+//    {
+//      MPU6050_ProcessData(&MPU6050);
+//      //printf("%f, %f, %f\n", MPU6050.acc_x, MPU6050.acc_y, MPU6050.acc_z);
+//      //printf("%f, %f, %f\n", MPU6050.gyro_x, MPU6050.gyro_y, MPU6050.gyro_z);
+//      printf("%d, %d, %d\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
+//    }
     osDelay(1000);
   }
   /* USER CODE END defaultTaskFunc */
+}
+
+/* USER CODE BEGIN Header_StartTask02 */
+/**
+* @brief Function implementing the myTask02 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask02 */
+void StartTask02(void *argument)
+{
+  /* USER CODE BEGIN StartTask02 */
+  /* Infinite loop */
+  int y;
+
+  for(;;)
+  {
+    for(y=0; y<8; y=y+1) // 8 times
+    {
+      step(25, 0, 800); // 25 steps (45 degrees) CCV
+      HAL_Delay(500);
+    }
+    step(800, 1, 5000); // 800 steps (4 revolutions ) CV
+    HAL_Delay(1000);
+    osDelay(1);
+  }
+  /* USER CODE END StartTask02 */
 }
 
 /* Private application code --------------------------------------------------*/

@@ -21,6 +21,7 @@
 #include "cmsis_os.h"
 #include "i2c.h"
 #include "usart.h"
+#include "tim.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -61,7 +62,7 @@ void MX_FREERTOS_Init(void);
 int _write(int file, char *ptr, int len)
 {
   //if(HAL_UART_Transmit(&huart3,(uint8_t *)ptr, len,100) != HAL_OK)
-  if(HAL_UART_Transmit_IT(&hlpuart1,(uint8_t *)ptr, len) != HAL_OK)
+  if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)ptr, len,100) != HAL_OK)
   {
     Error_Handler();
   }
@@ -101,6 +102,7 @@ int main(void)
   MX_LPUART1_UART_Init();
   MX_I2C2_Init();
   MX_USART3_UART_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
