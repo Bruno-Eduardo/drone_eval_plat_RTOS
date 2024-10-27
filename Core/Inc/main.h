@@ -74,6 +74,10 @@ void Error_Handler(void);
 #define LPUART1_RX_GPIO_Port GPIOA
 #define LD2_Pin GPIO_PIN_5
 #define LD2_GPIO_Port GPIOA
+#define LOG_TX_Pin GPIO_PIN_10
+#define LOG_TX_GPIO_Port GPIOB
+#define LOG_RX_Pin GPIO_PIN_11
+#define LOG_RX_GPIO_Port GPIOB
 #define M2_pin2_Pin GPIO_PIN_10
 #define M2_pin2_GPIO_Port GPIOA
 #define T_SWDIO_Pin GPIO_PIN_13
