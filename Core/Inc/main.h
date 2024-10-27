@@ -74,12 +74,18 @@ void Error_Handler(void);
 #define LPUART1_RX_GPIO_Port GPIOA
 #define LD2_Pin GPIO_PIN_5
 #define LD2_GPIO_Port GPIOA
+#define M2_pin2_Pin GPIO_PIN_10
+#define M2_pin2_GPIO_Port GPIOA
 #define T_SWDIO_Pin GPIO_PIN_13
 #define T_SWDIO_GPIO_Port GPIOA
 #define T_SWCLK_Pin GPIO_PIN_14
 #define T_SWCLK_GPIO_Port GPIOA
-#define T_SWO_Pin GPIO_PIN_3
-#define T_SWO_GPIO_Port GPIOB
+#define M2_pin1_Pin GPIO_PIN_3
+#define M2_pin1_GPIO_Port GPIOB
+#define M1_pin1_Pin GPIO_PIN_4
+#define M1_pin1_GPIO_Port GPIOB
+#define M1_pin2_Pin GPIO_PIN_5
+#define M1_pin2_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
