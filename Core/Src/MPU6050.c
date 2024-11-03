@@ -35,20 +35,20 @@ void MPU6050_Initialization(void)
 {
 	HAL_Delay(50);
 	uint8_t who_am_i = 0;
-	printf("Checking MPU6050...\n");
+	printf("Checking MPU6050...\r\n");
 
 	MPU6050_Readbyte(MPU6050_WHO_AM_I, &who_am_i);
 	if(who_am_i == 0x68)
 	{
-		printf("MPU6050 who_am_i = 0x%02x...OK\n", who_am_i);
+		printf("MPU6050 who_am_i = 0x%02x...OK\r\n", who_am_i);
 	}
 	else
 	{
-		printf("ERROR!\n");
-		printf("MPU6050 who_am_i : 0x%02x should be 0x68\n", who_am_i);
+		printf("ERROR!\r\n");
+		printf("MPU6050 who_am_i : 0x%02x should be 0x68\r\n", who_am_i);
 		while(1)
 		{
-			printf("who am i error. Can not recognize mpu6050\n");
+			printf("who am i error. Can not recognize mpu6050\r\n");
 			HAL_Delay(100);
 		}
 	}
@@ -95,7 +95,7 @@ void MPU6050_Initialization(void)
 	HAL_Delay(50);
 
 	MPU6050_Get_LSB_Sensitivity(FS_SCALE_GYRO, FS_SCALE_ACC);
-	printf("LSB_Sensitivity_GYRO: %f, LSB_Sensitivity_ACC: %f\n",LSB_Sensitivity_GYRO, LSB_Sensitivity_ACC); // @suppress("Float formatting support")
+	printf("LSB_Sensitivity_GYRO: %f, LSB_Sensitivity_ACC: %f\r\n",LSB_Sensitivity_GYRO, LSB_Sensitivity_ACC); // @suppress("Float formatting support")
 
 	//Interrupt PIN setting
 	uint8_t INT_LEVEL = 0x0; //0 - active high, 1 - active low
@@ -109,7 +109,7 @@ void MPU6050_Initialization(void)
 	MPU6050_Writebyte(MPU6050_INT_ENABLE, DATA_RDY_EN);
 	HAL_Delay(50);
 
-	printf("MPU6050 setting is finished\n");
+	printf("MPU6050 setting is finished\r\n");
 }
 /*Get Raw Data from sensor*/
 void MPU6050_Get6AxisRawData(Struct_MPU6050* mpu6050)
@@ -165,7 +165,7 @@ void MPU6050_Get_LSB_Sensitivity(uint8_t FS_SCALE_GYRO, uint8_t FS_SCALE_ACC)
 /*Convert Unit. acc_raw -> g, gyro_raw -> degree per second*/
 void MPU6050_DataConvert(Struct_MPU6050* mpu6050)
 {
-	//printf("LSB_Sensitivity_GYRO: %f, LSB_Sensitivity_ACC: %f\n",LSB_Sensitivity_GYRO,LSB_Sensitivity_ACC);
+	//printf("LSB_Sensitivity_GYRO: %f, LSB_Sensitivity_ACC: %f\r\n",LSB_Sensitivity_GYRO,LSB_Sensitivity_ACC);
 	mpu6050->acc_x = mpu6050->acc_x_raw / LSB_Sensitivity_ACC;
 	mpu6050->acc_y = mpu6050->acc_y_raw / LSB_Sensitivity_ACC;
 	mpu6050->acc_z = mpu6050->acc_z_raw / LSB_Sensitivity_ACC;

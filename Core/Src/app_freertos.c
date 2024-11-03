@@ -22,7 +22,6 @@
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -158,18 +157,21 @@ void MX_FREERTOS_Init(void) {
 void defaultTaskFunc(void *argument)
 {
   /* USER CODE BEGIN defaultTaskFunc */
-//  MPU6050_Initialization();
+  MPU6050_Initialization();
   /* Infinite loop */
   for(;;)
   {
     printf("up....\r\n");
-//    if(MPU6050_DataReady() == 1)
-//    {
-//      MPU6050_ProcessData(&MPU6050);
-//      //printf("%f, %f, %f\n", MPU6050.acc_x, MPU6050.acc_y, MPU6050.acc_z);
-//      //printf("%f, %f, %f\n", MPU6050.gyro_x, MPU6050.gyro_y, MPU6050.gyro_z);
-//      printf("%d, %d, %d\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
-//    }
+    if(MPU6050_DataReady() == 1)
+    {
+      MPU6050_ProcessData(&MPU6050);
+      //printf("%f, %f, %f\n", MPU6050.acc_x, MPU6050.acc_y, MPU6050.acc_z);
+      //printf("%f, %f, %f\n", MPU6050.gyro_x, MPU6050.gyro_y, MPU6050.gyro_z);
+//      printf("acc: x:%d, y:%d, z:%d\r\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
+      //printf("gyr: x:%d, y:%d, z:%d\r\n",  (int)MPU6050.gyro_x, (int)MPU6050.gyro_y, (int)MPU6050.gyro_z);
+      printf("acc: x=%d, y=%d, z=%d\r\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
+      printf("gyr: x=%d, y=%d, z=%d\r\n", (int) MPU6050.gyro_x, (int) MPU6050.gyro_y, (int) MPU6050.gyro_z);
+    }
     osDelay(1000);
   }
   /* USER CODE END defaultTaskFunc */
