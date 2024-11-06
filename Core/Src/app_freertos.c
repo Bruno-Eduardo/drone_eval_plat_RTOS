@@ -22,9 +22,13 @@
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "usart.h"
+#include "stdio.h"
+#include "MPU6050.h"
+#include "tim.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,9 +39,6 @@ typedef StaticTask_t osStaticThreadDef_t;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#include "stdio.h"
-#include "MPU6050.h"
-#include "tim.h"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -72,6 +73,32 @@ void step (int steps, uint8_t direction, uint16_t delay)
 }
 
 
+#define UART_BUFFER_SIZE 256
+unsigned char ucUartInputChar = '\0';
+unsigned short int usBufferIndex = 0;
+unsigned char ucUartInputBuffer[UART_BUFFER_SIZE];
+unsigned short int usLastPrintedIndex = 0;
+// *****************************************************    //
+// Method name: HAL_UART_RxCpltCallback                     //
+// Method description:  This method overrides the UART      //
+//                      detection callback, which is        //
+//                      triggered when a new char arrives   //
+//                      It sends the char to the cyclic     //
+//                      buffer and updates the buffer index //
+// Input params:        huart                               //
+//                      The specific uart that              //
+//                      triggered the interrupt.            //
+// Output params:       n/a                                 //
+// *****************************************************    //
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart == &huart5){
+    ucUartInputBuffer[usBufferIndex++] = ucUartInputChar;
+    if(usBufferIndex > UART_BUFFER_SIZE - 1)
+      usBufferIndex = 0;
+  }
+}
 
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
@@ -93,6 +120,13 @@ const osThreadAttr_t myTask02_attributes = {
   .priority = (osPriority_t) osPriorityLow,
   .stack_size = 128 * 4
 };
+/* Definitions for BT_uart */
+osThreadId_t BT_uartHandle;
+const osThreadAttr_t BT_uart_attributes = {
+  .name = "BT_uart",
+  .priority = (osPriority_t) osPriorityLow,
+  .stack_size = 128 * 4
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -101,6 +135,7 @@ const osThreadAttr_t myTask02_attributes = {
 
 void defaultTaskFunc(void *argument);
 void StartTask02(void *argument);
+void BT_uart_func(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -137,6 +172,9 @@ void MX_FREERTOS_Init(void) {
   /* creation of myTask02 */
   myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
+  /* creation of BT_uart */
+  BT_uartHandle = osThreadNew(BT_uart_func, NULL, &BT_uart_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -165,13 +203,11 @@ void defaultTaskFunc(void *argument)
     if(MPU6050_DataReady() == 1)
     {
       MPU6050_ProcessData(&MPU6050);
-      //printf("%f, %f, %f\n", MPU6050.acc_x, MPU6050.acc_y, MPU6050.acc_z);
-      //printf("%f, %f, %f\n", MPU6050.gyro_x, MPU6050.gyro_y, MPU6050.gyro_z);
-//      printf("acc: x:%d, y:%d, z:%d\r\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
-      //printf("gyr: x:%d, y:%d, z:%d\r\n",  (int)MPU6050.gyro_x, (int)MPU6050.gyro_y, (int)MPU6050.gyro_z);
       printf("acc: x=%d, y=%d, z=%d\r\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
       printf("gyr: x=%d, y=%d, z=%d\r\n", (int) MPU6050.gyro_x, (int) MPU6050.gyro_y, (int) MPU6050.gyro_z);
     }
+
+
     osDelay(1000);
   }
   /* USER CODE END defaultTaskFunc */
@@ -202,6 +238,38 @@ void StartTask02(void *argument)
     osDelay(1);
   }
   /* USER CODE END StartTask02 */
+}
+
+/* USER CODE BEGIN Header_BT_uart_func */
+/**
+* @brief Function implementing the BT_uart thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_BT_uart_func */
+void BT_uart_func(void *argument)
+{
+  /* USER CODE BEGIN BT_uart_func */
+
+  /* Infinite loop */
+  HAL_UART_Transmit( &hlpuart1, "\r\nbluetooth IS on\r\n", 19, 100);
+  for(;;)
+  {
+    HAL_UART_Receive_IT(&huart5, &ucUartInputChar, 1);
+
+    // If buffer size differs from printed amount, print until they match
+    while ( usLastPrintedIndex != usBufferIndex ){
+
+      HAL_UART_Transmit( &hlpuart1, "bluetooth int: ", 15, 100);
+      HAL_UART_Transmit( &hlpuart1, &( ucUartInputBuffer[usLastPrintedIndex++] ), 1, 100);
+      HAL_UART_Transmit( &hlpuart1, "\r\n", 2, 100);
+      // if the printed size overflows, reset it
+      if (usLastPrintedIndex >  UART_BUFFER_SIZE - 1)
+        usLastPrintedIndex = 0;
+    }
+    osDelay(1);
+  }
+  /* USER CODE END BT_uart_func */
 }
 
 /* Private application code --------------------------------------------------*/
