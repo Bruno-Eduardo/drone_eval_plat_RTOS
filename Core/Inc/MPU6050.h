@@ -1,3 +1,10 @@
+#ifndef __MPU6050_H__
+#define __MPU6050_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "main.h"
 
 #define MPU6050_ADDR 0xD0
@@ -17,26 +24,26 @@
 
 
 
-#define MPU6050_INT_PORT 	GPIOB
-#define MPU6050_INT_PIN 	GPIO_PIN_12
+#define MPU6050_INT_PORT  GPIOB
+#define MPU6050_INT_PIN   GPIO_PIN_5
 
 
 typedef struct _MPU6050{
-	short acc_x_raw;
-	short acc_y_raw;
-	short acc_z_raw;
-	short temperature_raw;
-	short gyro_x_raw;
-	short gyro_y_raw;
-	short gyro_z_raw;
+  short acc_x_raw;
+  short acc_y_raw;
+  short acc_z_raw;
+  short temperature_raw;
+  short gyro_x_raw;
+  short gyro_y_raw;
+  short gyro_z_raw;
 
-	float acc_x;
-	float acc_y;
-	float acc_z;
-	float temperature;
-	float gyro_x;
-	float gyro_y;
-	float gyro_z;
+  float acc_x;
+  float acc_y;
+  float acc_z;
+  float temperature;
+  float gyro_x;
+  float gyro_y;
+  float gyro_z;
 }Struct_MPU6050;
 
 extern Struct_MPU6050 MPU6050;
@@ -51,3 +58,8 @@ int MPU6050_DataReady(void);
 void MPU6050_Get_LSB_Sensitivity(uint8_t FS_SCALE_GYRO, uint8_t FS_SCALE_ACC);
 void MPU6050_DataConvert(Struct_MPU6050* mpu6050);
 void MPU6050_ProcessData(Struct_MPU6050* mpu6050);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

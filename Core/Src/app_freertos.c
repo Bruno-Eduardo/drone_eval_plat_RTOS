@@ -25,13 +25,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "usart.h"
 #include "stdio.h"
-#include "MPU6050.h"
-#include "tim.h"
 #include "string.h"
-#include "gpio.h"
 
+#include "gpio.h"
+#include "usart.h"
+#include "tim.h"
+
+#include "MPU6050.h"
+#include "CalculateAngle.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,10 +44,25 @@ typedef struct {
   int message_len;
   char message_buffer[MAX_MESSAGE_LEN];
 } printfMessage;
+
+typedef struct {
+  float fYaw;
+  float fRoll;
+  float fPitch;
+  int iDataFromJoystick;
+} xSetpoint;
+
+typedef struct {
+  float fYaw;
+  float fRoll;
+  float fPitch;
+} xJoystickData;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define DEFAULT_OSDELAY_LOOP 4
+#define UART_BUFFER_SIZE 256
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,60 +73,13 @@ typedef struct {
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-void microDelay (uint16_t delay)
-{
-  int a = 0;
-  __HAL_TIM_SET_COUNTER(&htim1, 0);
-  do{
-    a = __HAL_TIM_GET_COUNTER(&htim1);
-  }while (a < delay);
-}
-
-void step (int steps, uint8_t direction, uint16_t delay)
-{
-  int x;
-//  if (direction == 0)
-//    HAL_GPIO_WritePin(M2_pin1_GPIO_Port, M2_pin1_Pin, 1);
-//  else
-//    HAL_GPIO_WritePin(M2_pin1_GPIO_Port, M2_pin1_Pin, 0);
-  HAL_GPIO_WritePin(M2_pin1_GPIO_Port, M2_pin1_Pin, !direction);
-  for(x=0; x<steps; x=x+1)
-  {
-    HAL_GPIO_WritePin(M2_pin2_GPIO_Port, M2_pin2_Pin, 1);
-    microDelay(delay);
-    HAL_GPIO_WritePin(M2_pin2_GPIO_Port, M2_pin2_Pin, 0);
-    microDelay(delay);
-  }
-}
-
-
-#define UART_BUFFER_SIZE 256
+xSetpoint xSetpointData = {0, 0, 0, 0};
+xSetpoint xHostData = {0, 0, 0, 0};
+xJoystickData xJoystickDataIncoming = {0, 0, 0};
 unsigned char ucUartInputChar = '\0';
 unsigned short int usBufferIndex = 0;
 unsigned char ucUartInputBuffer[UART_BUFFER_SIZE];
 unsigned short int usLastPrintedIndex = 0;
-// *****************************************************    //
-// Method name: HAL_UART_RxCpltCallback                     //
-// Method description:  This method overrides the UART      //
-//                      detection callback, which is        //
-//                      triggered when a new char arrives   //
-//                      It sends the char to the cyclic     //
-//                      buffer and updates the buffer index //
-// Input params:        huart                               //
-//                      The specific uart that              //
-//                      triggered the interrupt.            //
-// Output params:       n/a                                 //
-// *****************************************************    //
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  if (huart == &huart5){
-    ucUartInputBuffer[usBufferIndex++] = ucUartInputChar;
-    if(usBufferIndex > UART_BUFFER_SIZE - 1)
-      usBufferIndex = 0;
-  }
-}
-
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -225,7 +195,9 @@ const osMessageQueueAttr_t rollMotorNewAngle_attributes = {
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
+void microDelay(uint16_t delay);
+void step(int steps, uint8_t direction, uint16_t delay, GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 /* USER CODE END FunctionPrototypes */
 
 void defaultTaskFunc(void *argument);
@@ -340,20 +312,23 @@ void MX_FREERTOS_Init(void) {
 void defaultTaskFunc(void *argument)
 {
   /* USER CODE BEGIN defaultTaskFunc */
-  MPU6050_Initialization();
+  // MPU6050_Initialization();
   /* Infinite loop */
   for(;;)
   {
 //    printf("up....\r\n");
 //    if(MPU6050_DataReady() == 0 && MPU6050_DataReady() == 1)
 //    {
-      MPU6050_ProcessData(&MPU6050);
-      printf("acc: x=%d, y=%d, z=%d\r\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
-      printf("gyr: x=%d, y=%d, z=%d\r\n", (int) MPU6050.gyro_x, (int) MPU6050.gyro_y, (int) MPU6050.gyro_z);
+      // MPU6050_ProcessData(&MPU6050);
+      // printf("acc: x=%d, y=%d, z=%d\r\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
+      // printf("gyr: x=%d, y=%d, z=%d\r\n", (int) MPU6050.gyro_x, (int) MPU6050.gyro_y, (int) MPU6050.gyro_z);
 //    }
 
 
-    osDelay(100);
+    // osDelay(10000001);
+    // wait for 1^30 cycles
+    osDelay(1 << 30);
+
   }
   /* USER CODE END defaultTaskFunc */
 }
@@ -369,18 +344,8 @@ void StartTask02(void *argument)
 {
   /* USER CODE BEGIN StartTask02 */
   /* Infinite loop */
-  int y;
-
   for(;;)
   {
-//    for(y=0; y<8; y=y+1) // 8 times
-//    {
-//      step(25, 0, 500); // 25 steps (45 degrees) CCV
-//      HAL_Delay(500);
-//    }
-//    step(800, 0, 500); // 800 steps (4 revolutions ) CV
-//    HAL_Delay(1000);
-//    printf("turn....\r\n");
     osDelay(10000);
   }
   /* USER CODE END StartTask02 */
@@ -396,39 +361,30 @@ void StartTask02(void *argument)
 void BT_uart_func(void *argument)
 {
   /* USER CODE BEGIN BT_uart_func */
-//  char *char_to_print ="@";
-//
-//  /* Infinite loop */
-//  HAL_UART_Transmit( &hlpuart1, "\r\nbluetooth IS on\r\n", 19, 100);
-//  for(;;)
-//  {
-//    HAL_UART_Receive_IT(&huart5, &ucUartInputChar, 1);
-//
-//    // If buffer size differs from printed amount, print until they match
-//    while ( usLastPrintedIndex != usBufferIndex ){
-//
-//      HAL_UART_Transmit( &hlpuart1, "bluetooth int: ", 15, 100);
-//
-////      char_to_print[0] = ucUartInputBuffer[usLastPrintedIndex++];
-////      if (char_to_print[0] != '0' )
-////        HAL_UART_Transmit( &hlpuart1, char_to_print, 1, 100);
-////      else
-////        HAL_UART_Transmit( &hlpuart1, "KEY_RELEASED", 12, 100);
-////      HAL_UART_Transmit( &hlpuart1, "\r\n", 2, 100);
-////      // if the printed size overflows, reset it
-//      if ( ucUartInputBuffer[usLastPrintedIndex] == '0')
-//        HAL_UART_Transmit( &hlpuart1, "KEY_RELEASED", 12, 100);
-//      else
-//        HAL_UART_Transmit( &hlpuart1, &( ucUartInputBuffer[usLastPrintedIndex] ), 1, 100);
-//      usLastPrintedIndex++;
-//
-//
-//      HAL_UART_Transmit( &hlpuart1, "\r\n", 2, 100);
-//      if (usLastPrintedIndex >  UART_BUFFER_SIZE - 1)
-//        usLastPrintedIndex = 0;
-//    }
+
+  /* Infinite loop */
+  printf("\r\nbluetooth IS on\r\n");
+  for(;;)
+  {
+    HAL_UART_Receive_IT(&huart5, &ucUartInputChar, 1);
+
+    // If buffer size differs from printed amount, print until they match
+    while ( usLastPrintedIndex != usBufferIndex ){
+
+      printf("bluetooth int: ");
+      if ( ucUartInputBuffer[usLastPrintedIndex] == '0')
+        printf("KEY_RELEASED");
+      else
+        printf((char *) &( ucUartInputBuffer[usLastPrintedIndex] ));
+      usLastPrintedIndex++;
+
+
+      printf("\r\n");
+      if (usLastPrintedIndex >  UART_BUFFER_SIZE - 1)
+        usLastPrintedIndex = 0;
+    }
     osDelay(10000);
-//  }
+  }
   /* USER CODE END BT_uart_func */
 }
 
@@ -468,10 +424,32 @@ void printGateKeeperFunc(void *argument)
 void writeSetpointFunc(void *argument)
 {
   /* USER CODE BEGIN writeSetpointFunc */
+  uint32_t uiThreadFlagsReturn = 0;
+
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    // wait for writeSetpointFunc task flag to be different from 0
+    uiThreadFlagsReturn = osThreadFlagsWait(0x1, 0x11, 1000);
+    // if return is 0x1, read data from joystick
+    // if return is 0x10, read data from host
+    // else we loop and wait for the flag to be set
+    if (uiThreadFlagsReturn == 0x1){
+      // read data from joystick
+      xSetpointData.iDataFromJoystick = 1;
+      xSetpointData.fYaw = xJoystickDataIncoming.fYaw;
+      xSetpointData.fRoll = xJoystickDataIncoming.fRoll;
+      xSetpointData.fPitch = xJoystickDataIncoming.fPitch;
+      
+    }
+    else if (uiThreadFlagsReturn == 0x10){
+      // read data from host
+      xSetpointData.iDataFromJoystick = 0;
+      xSetpointData.fYaw = xHostData.fYaw;
+      xSetpointData.fRoll = xHostData.fRoll;
+      xSetpointData.fPitch = xHostData.fPitch;      
+    }
+    osDelay(4);
   }
   /* USER CODE END writeSetpointFunc */
 }
@@ -489,7 +467,8 @@ void readFromHostFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END readFromHostFunc */
 }
@@ -504,10 +483,20 @@ void readFromHostFunc(void *argument)
 void readFromIMUFunc(void *argument)
 {
   /* USER CODE BEGIN readFromIMUFunc */
+  
+  MPU6050_Initialization();
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    if(MPU6050_DataReady() == 1)
+    {
+      MPU6050_ProcessData(&MPU6050);
+      CalculateCompliFilter(&Angle, &MPU6050);
+      printf("%f, %f, %f\r\n", Angle.ComFilt_roll,Angle.ComFilt_pitch,Angle.ComFilt_yaw);
+    } else{
+      printf("int status: %d\r\n", HAL_GPIO_ReadPin(MPU6050_INT_PORT, MPU6050_INT_PIN));
+    }
+    osDelay(25);
   }
   /* USER CODE END readFromIMUFunc */
 }
@@ -525,7 +514,7 @@ void updateControlFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END updateControlFunc */
 }
@@ -543,7 +532,7 @@ void writeToHostFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END writeToHostFunc */
 }
@@ -561,7 +550,7 @@ void convertSetpointToStepsFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END convertSetpointToStepsFunc */
 }
@@ -576,10 +565,11 @@ void convertSetpointToStepsFunc(void *argument)
 void sendToHostFunc(void *argument)
 {
   /* USER CODE BEGIN sendToHostFunc */
+  // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END sendToHostFunc */
 }
@@ -594,10 +584,19 @@ void sendToHostFunc(void *argument)
 void moveYawMotorFunc(void *argument)
 {
   /* USER CODE BEGIN moveYawMotorFunc */
+  int iLoopIterator = 0;
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    for(iLoopIterator = 0; iLoopIterator < 8; iLoopIterator++) // 8 times
+    {
+      step(25, 1, 500, M2_pin2_GPIO_Port, M2_pin2_Pin); // 25 steps (45 degrees) CV
+      HAL_Delay(500);
+    }
+    step(800, 1, 500, M2_pin2_GPIO_Port, M2_pin2_Pin); // 800 steps (4 revolutions ) CCV
+    HAL_Delay(1000);
+    printf("turn....\r\n");
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END moveYawMotorFunc */
 }
@@ -612,10 +611,19 @@ void moveYawMotorFunc(void *argument)
 void moveRollMotorFunc(void *argument)
 {
   /* USER CODE BEGIN moveRollMotorFunc */
+  int iLoopIterator = 0;
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    for(iLoopIterator = 0; iLoopIterator < 8; iLoopIterator++) // 8 times
+    {
+      step(25, 1, 500, M1_pin2_GPIO_Port, M1_pin2_Pin); // 25 steps (45 degrees) CV
+      HAL_Delay(500);
+    }
+    step(800, 1, 500, M1_pin2_GPIO_Port, M1_pin2_Pin); // 800 steps (4 revolutions ) CCV
+    HAL_Delay(1000);
+    printf("turn....\r\n");
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END moveRollMotorFunc */
 }
@@ -633,5 +641,50 @@ int _write(int file, char *ptr, int len)
   osMessageQueuePut(printfQueueHandle, &xIncommingMessage, 0x0, 100);
   return len;
 }
+
+void step(int steps, uint8_t direction, uint16_t delay, GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
+{
+  int x;
+
+  HAL_GPIO_WritePin(GPIOx, GPIO_Pin, !direction);
+  for(x=0; x<steps; x=x+1)
+  {
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 1);
+    microDelay(delay);
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 0);
+    microDelay(delay);
+  }
+}
+
+void microDelay (uint16_t delay)
+{
+  int a = 0;
+  __HAL_TIM_SET_COUNTER(&htim1, 0);
+  do{
+    a = __HAL_TIM_GET_COUNTER(&htim1);
+  }while (a < delay);
+}
+
+// *****************************************************    //
+// Method name: HAL_UART_RxCpltCallback                     //
+// Method description:  This method overrides the UART      //
+//                      detection callback, which is        //
+//                      triggered when a new char arrives   //
+//                      It sends the char to the cyclic     //
+//                      buffer and updates the buffer index //
+// Input params:        huart                               //
+//                      The specific uart that              //
+//                      triggered the interrupt.            //
+// Output params:       n/a                                 //
+// *****************************************************    //
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart == &huart5){
+    ucUartInputBuffer[usBufferIndex++] = ucUartInputChar;
+    if(usBufferIndex > UART_BUFFER_SIZE - 1)
+      usBufferIndex = 0;
+  }
+}
+
 /* USER CODE END Application */
 
