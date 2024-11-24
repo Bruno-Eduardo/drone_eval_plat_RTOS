@@ -41,9 +41,9 @@ typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
 #define MAX_MESSAGE_LEN 32
 typedef struct {
-  int message_len;
-  char message_buffer[MAX_MESSAGE_LEN];
-} printfMessage;
+  int iMessageLen;
+  char pMessageBuffer[MAX_MESSAGE_LEN];
+} xPrintfMessage;
 
 typedef struct {
   float fYaw;
@@ -232,7 +232,7 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the queue(s) */
   /* creation of printfQueue */
-  printfQueueHandle = osMessageQueueNew (128, sizeof(printfMessage), &printfQueue_attributes);
+  printfQueueHandle = osMessageQueueNew (128, sizeof(xPrintfMessage), &printfQueue_attributes);
 
   /* creation of yawMotorNewAngle */
   yawMotorNewAngleHandle = osMessageQueueNew (16, sizeof(uint16_t), &yawMotorNewAngle_attributes);
@@ -369,14 +369,14 @@ void BT_uart_func(void *argument)
 void printGateKeeperFunc(void *argument)
 {
   /* USER CODE BEGIN printGateKeeperFunc */
-  printfMessage xIncommingMessage;
+  xPrintfMessage xIncommingMessage;
   /* Infinite loop */
   for(;;)
   {
 
   if (osMessageQueueGet(printfQueueHandle, &xIncommingMessage, 0x0, 10) == osOK){
 //    if(HAL_UART_Transmit(&huart3,(uint8_t *)xIncommingMessage.message_buffer, xIncommingMessage.message_len, 100) != HAL_OK)
-    if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)xIncommingMessage.message_buffer, xIncommingMessage.message_len, 100) != HAL_OK){
+    if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)xIncommingMessage.pMessageBuffer, xIncommingMessage.iMessageLen, 100) != HAL_OK){
       Error_Handler();
       }
   }
@@ -603,12 +603,12 @@ void moveRollMotorFunc(void *argument)
 /* USER CODE BEGIN Application */
 int _write(int file, char *ptr, int len)
 {
-  printfMessage xIncommingMessage;
+  xPrintfMessage xIncommingMessage;
 
-  len = MIN(len, MAX_MESSAGE_LEN);
-  xIncommingMessage.message_len = len;
-  strncpy(xIncommingMessage.message_buffer, ptr, len);
-  xIncommingMessage.message_buffer[len] = '\0';
+  len = MIN(len, MAX_MESSAGE_LEN)+1; //+1 to '\0'
+  xIncommingMessage.iMessageLen = len;
+  strncpy(xIncommingMessage.pMessageBuffer, ptr, len);
+  xIncommingMessage.pMessageBuffer[len] = '\0';
   osMessageQueuePut(printfQueueHandle, &xIncommingMessage, 0x0, 100);
   return len;
 }
