@@ -56,19 +56,29 @@ typedef struct {
   float fYaw;
   float fRoll;
   float fPitch;
-} xJoystickData;
+} xIMUData;
+
+typedef xIMUData xJoystickData;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEFAULT_OSDELAY_LOOP 4
 #define UART_BUFFER_SIZE 256
+#define STEP_MOTOR_MICRODELAY 500
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
+// matrix multiplication, we pass ret=A*x, wheere x is 3x1 and returns a 4x1 matrix: A is 4x3
+#define MATRIX_MULTIPLICATION(ret, A, x) \
+  ret[0] = A[0][0]*x[0] + A[0][1]*x[1] + A[0][2]*x[2]; \
+  ret[1] = A[1][0]*x[0] + A[1][1]*x[1] + A[1][2]*x[2]; \
+  ret[2] = A[2][0]*x[0] + A[2][1]*x[1] + A[2][2]*x[2]; \
+  ret[3] = A[3][0]*x[0] + A[3][1]*x[1] + A[3][2]*x[2];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -76,6 +86,8 @@ typedef struct {
 xSetpoint xSetpointData = {0, 0, 0, 0};
 xSetpoint xHostData = {0, 0, 0, 0};
 xJoystickData xJoystickDataIncoming = {0, 0, 0};
+float fMotorSpeeds[4] = {0, 0, 0, 0};
+
 unsigned char ucUartInputChar = '\0';
 unsigned short int usBufferIndex = 0;
 unsigned char ucUartInputBuffer[UART_BUFFER_SIZE];
@@ -135,13 +147,6 @@ const osThreadAttr_t updateControl_attributes = {
   .priority = (osPriority_t) osPriorityAboveNormal,
   .stack_size = 128 * 4
 };
-/* Definitions for writeToHost */
-osThreadId_t writeToHostHandle;
-const osThreadAttr_t writeToHost_attributes = {
-  .name = "writeToHost",
-  .priority = (osPriority_t) osPriorityNormal5,
-  .stack_size = 128 * 4
-};
 /* Definitions for convertSetpoint */
 osThreadId_t convertSetpointHandle;
 const osThreadAttr_t convertSetpoint_attributes = {
@@ -185,6 +190,16 @@ osMessageQueueId_t rollMotorNewAngleHandle;
 const osMessageQueueAttr_t rollMotorNewAngle_attributes = {
   .name = "rollMotorNewAngle"
 };
+/* Definitions for IMUdata */
+osMessageQueueId_t IMUdataHandle;
+const osMessageQueueAttr_t IMUdata_attributes = {
+  .name = "IMUdata"
+};
+/* Definitions for IMUshouldUpdate */
+osSemaphoreId_t IMUshouldUpdateHandle;
+const osSemaphoreAttr_t IMUshouldUpdate_attributes = {
+  .name = "IMUshouldUpdate"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -200,7 +215,6 @@ void writeSetpointFunc(void *argument);
 void readFromHostFunc(void *argument);
 void readFromIMUFunc(void *argument);
 void updateControlFunc(void *argument);
-void writeToHostFunc(void *argument);
 void convertSetpointToStepsFunc(void *argument);
 void sendToHostFunc(void *argument);
 void moveYawMotorFunc(void *argument);
@@ -222,6 +236,10 @@ void MX_FREERTOS_Init(void) {
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* creation of IMUshouldUpdate */
+  IMUshouldUpdateHandle = osSemaphoreNew(1, 1, &IMUshouldUpdate_attributes);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -235,10 +253,13 @@ void MX_FREERTOS_Init(void) {
   printfQueueHandle = osMessageQueueNew (128, sizeof(xPrintfMessage), &printfQueue_attributes);
 
   /* creation of yawMotorNewAngle */
-  yawMotorNewAngleHandle = osMessageQueueNew (16, sizeof(uint16_t), &yawMotorNewAngle_attributes);
+  yawMotorNewAngleHandle = osMessageQueueNew (16, sizeof(float), &yawMotorNewAngle_attributes);
 
   /* creation of rollMotorNewAngle */
-  rollMotorNewAngleHandle = osMessageQueueNew (16, sizeof(uint16_t), &rollMotorNewAngle_attributes);
+  rollMotorNewAngleHandle = osMessageQueueNew (16, sizeof(float), &rollMotorNewAngle_attributes);
+
+  /* creation of IMUdata */
+  IMUdataHandle = osMessageQueueNew (4, sizeof(xIMUData), &IMUdata_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -265,9 +286,6 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of updateControl */
   updateControlHandle = osThreadNew(updateControlFunc, NULL, &updateControl_attributes);
-
-  /* creation of writeToHost */
-  writeToHostHandle = osThreadNew(writeToHostFunc, NULL, &writeToHost_attributes);
 
   /* creation of convertSetpoint */
   convertSetpointHandle = osThreadNew(convertSetpointToStepsFunc, NULL, &convertSetpoint_attributes);
@@ -344,7 +362,7 @@ void BT_uart_func(void *argument)
       if (usLastPrintedIndex >  UART_BUFFER_SIZE - 1)
         usLastPrintedIndex = 0;
     }
-    osDelay(10000);
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END BT_uart_func */
 }
@@ -364,13 +382,13 @@ void printGateKeeperFunc(void *argument)
   for(;;)
   {
 
-  if (osMessageQueueGet(printfQueueHandle, &xIncommingMessage, 0x0, 10) == osOK){
-//    if(HAL_UART_Transmit(&huart3,(uint8_t *)xIncommingMessage.message_buffer, xIncommingMessage.message_len, 100) != HAL_OK)
-    if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)xIncommingMessage.pMessageBuffer, xIncommingMessage.iMessageLen, 100) != HAL_OK){
-      Error_Handler();
+    if (osMessageQueueGet(printfQueueHandle, &xIncommingMessage, 0x0, 10) == osOK){
+  //    if(HAL_UART_Transmit(&huart3,(uint8_t *)xIncommingMessage.message_buffer, xIncommingMessage.message_len, 100) != HAL_OK)
+      if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)xIncommingMessage.pMessageBuffer, xIncommingMessage.iMessageLen, 100) != HAL_OK){
+        Error_Handler();
       }
-  }
-    osDelay(100);
+    }
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END printGateKeeperFunc */
 }
@@ -425,6 +443,7 @@ void writeSetpointFunc(void *argument)
 void readFromHostFunc(void *argument)
 {
   /* USER CODE BEGIN readFromHostFunc */
+    // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
   /* Infinite loop */
   for(;;)
   {
@@ -449,15 +468,13 @@ void readFromIMUFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    if(MPU6050_DataReady() == 1)
-    {
+    // IMUshouldUpdate semaphore is set to 1 when the IMU has new data
+    if (osSemaphoreAcquire(IMUshouldUpdateHandle, 0) == osOK){
       MPU6050_ProcessData(&MPU6050);
       CalculateCompliFilter(&Angle, &MPU6050);
-//      printf("%f, %f, %f\r\n", Angle.ComFilt_roll,Angle.ComFilt_pitch,Angle.ComFilt_yaw);
-    } else{
-      printf("int status: %d\r\n", HAL_GPIO_ReadPin(MPU6050_INT_PORT, MPU6050_INT_PIN));
+      // printf("%f, %f, %f\r\n", Angle.ComFilt_roll,Angle.ComFilt_pitch,Angle.ComFilt_yaw);
     }
-    osDelay(25);
+    osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END readFromIMUFunc */
 }
@@ -472,30 +489,52 @@ void readFromIMUFunc(void *argument)
 void updateControlFunc(void *argument)
 {
   /* USER CODE BEGIN updateControlFunc */
+  xIMUData xIMUDataIncoming = {0, 0, 0};
+  float xError[] = {0, 0, 0};
+  xIMUData xIMUDataPrevious = {0, 0, 0};
+  xIMUData xIMUDataErrorAccumulated = {0, 0, 0};
+  float fMotorSpeedsDiff[4] = {0, 0, 0, 0};
+
+  // we need a matrix to map the error to the motor speeds
+  float fStateToMotorSpeedMatrix[4][3] = {
+    {1, 1, 1},
+    {1, -1, -1},
+    {-1, -1, 1},
+    {-1, 1, -1}
+  };
+
   /* Infinite loop */
   for(;;)
   {
+    if (osMessageQueueGet(IMUdataHandle, &xIMUDataIncoming, 0x0, 100) == osOK){
+      xError[0] = xSetpointData.fYaw - xIMUDataIncoming.fYaw;
+      xError[1] = xSetpointData.fRoll - xIMUDataIncoming.fRoll;
+      xError[2] = xSetpointData.fPitch - xIMUDataIncoming.fPitch;
+
+      xIMUDataErrorAccumulated.fYaw += xError[0];
+      xIMUDataErrorAccumulated.fRoll += xError[1];
+      xIMUDataErrorAccumulated.fPitch += xError[2];
+
+      MATRIX_MULTIPLICATION(fMotorSpeedsDiff, fStateToMotorSpeedMatrix, xError);
+      fMotorSpeeds[0] = fMotorSpeeds[0] + fMotorSpeedsDiff[0];
+      fMotorSpeeds[1] = fMotorSpeeds[1] + fMotorSpeedsDiff[1];
+      fMotorSpeeds[2] = fMotorSpeeds[2] + fMotorSpeedsDiff[2];
+      fMotorSpeeds[3] = fMotorSpeeds[3] + fMotorSpeedsDiff[3];
+
+      // we need to update the real motor angles that will move the IMU
+      osMessageQueuePut(yawMotorNewAngleHandle, & xIMUDataIncoming.fYaw, 0, 1);
+      osMessageQueuePut(rollMotorNewAngleHandle, & xIMUDataIncoming.fRoll, 0, 1);
+
+      // we need to update the motor speeds to micro
+      osThreadFlagsSet(sendToHostHandle, 0x1);
+
+      xIMUDataPrevious = xIMUDataIncoming;
+      (void) xIMUDataPrevious; // just use to avoid warning, but would be necessary at PID
+    }
+
     osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END updateControlFunc */
-}
-
-/* USER CODE BEGIN Header_writeToHostFunc */
-/**
-* @brief Function implementing the writeToHost thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_writeToHostFunc */
-void writeToHostFunc(void *argument)
-{
-  /* USER CODE BEGIN writeToHostFunc */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(DEFAULT_OSDELAY_LOOP);
-  }
-  /* USER CODE END writeToHostFunc */
 }
 
 /* USER CODE BEGIN Header_convertSetpointToStepsFunc */
@@ -508,9 +547,33 @@ void writeToHostFunc(void *argument)
 void convertSetpointToStepsFunc(void *argument)
 {
   /* USER CODE BEGIN convertSetpointToStepsFunc */
+  // we know that  25 steps equals 45 degrees of the motor
+  // a full rotation is 45 degrees * 8 = 360 degrees
+  // but the gear diameter ratio is 1.5cm at motor to 8cm at IMU
+  float fGearDiameterRatio = 8/1.5;
+  float fMotorStepsToIMUFullRotation = 25 * fGearDiameterRatio;
+  xIMUData xIMUDataPrevious = {0, 0, 0};
+  float fNewAngleYaw = 0;
+  float fNewAngleRoll = 0;
+
+
   /* Infinite loop */
   for(;;)
   {
+    // wait thread flag to be set to 1
+    if (osThreadFlagsWait(0x1, 0x11, 1000) == 0x1){
+      // amount of steps to move the motor is the difference between the new angle and the previous angle
+      // divided by the amount of steps to move the IMU a full rotation
+      // we add to rollMotorNewAngleHandle and yawMotorNewAngleHandle
+      fNewAngleYaw = (xSetpointData.fYaw - xIMUDataPrevious.fYaw) / fMotorStepsToIMUFullRotation;
+      fNewAngleRoll = (xSetpointData.fRoll - xIMUDataPrevious.fRoll) / fMotorStepsToIMUFullRotation;
+      osMessageQueuePut(yawMotorNewAngleHandle, & fNewAngleYaw, 0, 100);
+      osMessageQueuePut(rollMotorNewAngleHandle, & fNewAngleRoll, 0, 100);
+
+      xIMUDataPrevious.fYaw = xSetpointData.fYaw;
+      xIMUDataPrevious.fRoll = xSetpointData.fRoll;
+      xIMUDataPrevious.fPitch = xSetpointData.fPitch;
+    }
     osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END convertSetpointToStepsFunc */
@@ -530,6 +593,10 @@ void sendToHostFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    // if thread flag is set to 1, send data to host
+    if (osThreadFlagsWait(0x1, 0x11, 1000) == 0x1){
+      // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
+    }
     osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END sendToHostFunc */
@@ -545,18 +612,14 @@ void sendToHostFunc(void *argument)
 void moveYawMotorFunc(void *argument)
 {
   /* USER CODE BEGIN moveYawMotorFunc */
-  int iLoopIterator = 0;
+  float fNewSteps;
   /* Infinite loop */
   for(;;)
   {
-    for(iLoopIterator = 0; iLoopIterator < 8; iLoopIterator++) // 8 times
-    {
-      step(25, 1, 500, M2_pin2_GPIO_Port, M2_pin2_Pin); // 25 steps (45 degrees) CV
-      HAL_Delay(500);
+    if (osMessageQueueGet(yawMotorNewAngleHandle, &fNewSteps, 0x0, 100) == osOK){
+      step(fNewSteps, fNewSteps>0?1:0, STEP_MOTOR_MICRODELAY, M2_pin2_GPIO_Port, M2_pin2_Pin);
     }
-    step(800, 1, 500, M2_pin2_GPIO_Port, M2_pin2_Pin); // 800 steps (4 revolutions ) CCV
-    HAL_Delay(1000);
-    printf("turn....\r\n");
+
     osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END moveYawMotorFunc */
@@ -564,7 +627,7 @@ void moveYawMotorFunc(void *argument)
 
 /* USER CODE BEGIN Header_moveRollMotorFunc */
 /**
-* @brief Function implementing the moveRollMotor thread.
+* @brief Function that moves the roll motor
 * @param argument: Not used
 * @retval None
 */
@@ -572,18 +635,14 @@ void moveYawMotorFunc(void *argument)
 void moveRollMotorFunc(void *argument)
 {
   /* USER CODE BEGIN moveRollMotorFunc */
-  int iLoopIterator = 0;
+  float fNewSteps;
   /* Infinite loop */
   for(;;)
   {
-    for(iLoopIterator = 0; iLoopIterator < 8; iLoopIterator++) // 8 times
-    {
-      step(25, 1, 500, M1_pin2_GPIO_Port, M1_pin2_Pin); // 25 steps (45 degrees) CV
-      HAL_Delay(500);
+    if (osMessageQueueGet(rollMotorNewAngleHandle, &fNewSteps, 0x0, 100) == osOK){
+      step(fNewSteps, fNewSteps>0?1:0, STEP_MOTOR_MICRODELAY, M1_pin2_GPIO_Port, M1_pin2_Pin);
     }
-    step(800, 1, 500, M1_pin2_GPIO_Port, M1_pin2_Pin); // 800 steps (4 revolutions ) CCV
-    HAL_Delay(1000);
-    printf("turn....\r\n");
+
     osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END moveRollMotorFunc */
