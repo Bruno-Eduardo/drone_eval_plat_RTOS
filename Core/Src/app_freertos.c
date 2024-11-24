@@ -93,13 +93,6 @@ const osThreadAttr_t defaultTask_attributes = {
   .cb_size = sizeof(defaultTaskControlBlock),
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for myTask02 */
-osThreadId_t myTask02Handle;
-const osThreadAttr_t myTask02_attributes = {
-  .name = "myTask02",
-  .priority = (osPriority_t) osPriorityLow,
-  .stack_size = 128 * 4
-};
 /* Definitions for BT_uart */
 osThreadId_t BT_uartHandle;
 const osThreadAttr_t BT_uart_attributes = {
@@ -201,7 +194,6 @@ void step(int steps, uint8_t direction, uint16_t delay, GPIO_TypeDef *GPIOx, uin
 /* USER CODE END FunctionPrototypes */
 
 void defaultTaskFunc(void *argument);
-void StartTask02(void *argument);
 void BT_uart_func(void *argument);
 void printGateKeeperFunc(void *argument);
 void writeSetpointFunc(void *argument);
@@ -255,9 +247,6 @@ void MX_FREERTOS_Init(void) {
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(defaultTaskFunc, NULL, &defaultTask_attributes);
-
-  /* creation of myTask02 */
-  myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
   /* creation of BT_uart */
   BT_uartHandle = osThreadNew(BT_uart_func, NULL, &BT_uart_attributes);
@@ -331,24 +320,6 @@ void defaultTaskFunc(void *argument)
 
   }
   /* USER CODE END defaultTaskFunc */
-}
-
-/* USER CODE BEGIN Header_StartTask02 */
-/**
-* @brief Function implementing the myTask02 thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartTask02 */
-void StartTask02(void *argument)
-{
-  /* USER CODE BEGIN StartTask02 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(10000);
-  }
-  /* USER CODE END StartTask02 */
 }
 
 /* USER CODE BEGIN Header_BT_uart_func */
@@ -492,7 +463,7 @@ void readFromIMUFunc(void *argument)
     {
       MPU6050_ProcessData(&MPU6050);
       CalculateCompliFilter(&Angle, &MPU6050);
-      printf("%f, %f, %f\r\n", Angle.ComFilt_roll,Angle.ComFilt_pitch,Angle.ComFilt_yaw);
+//      printf("%f, %f, %f\r\n", Angle.ComFilt_roll,Angle.ComFilt_pitch,Angle.ComFilt_yaw);
     } else{
       printf("int status: %d\r\n", HAL_GPIO_ReadPin(MPU6050_INT_PORT, MPU6050_INT_PIN));
     }
