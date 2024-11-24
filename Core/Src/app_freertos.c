@@ -301,20 +301,10 @@ void MX_FREERTOS_Init(void) {
 void defaultTaskFunc(void *argument)
 {
   /* USER CODE BEGIN defaultTaskFunc */
-  // MPU6050_Initialization();
+  
   /* Infinite loop */
   for(;;)
   {
-//    printf("up....\r\n");
-//    if(MPU6050_DataReady() == 0 && MPU6050_DataReady() == 1)
-//    {
-      // MPU6050_ProcessData(&MPU6050);
-      // printf("acc: x=%d, y=%d, z=%d\r\n", MPU6050.acc_x_raw, MPU6050.acc_y_raw, MPU6050.acc_z_raw);
-      // printf("gyr: x=%d, y=%d, z=%d\r\n", (int) MPU6050.gyro_x, (int) MPU6050.gyro_y, (int) MPU6050.gyro_z);
-//    }
-
-
-    // osDelay(10000001);
     // wait for 1^30 cycles
     osDelay(1 << 30);
 
@@ -601,41 +591,6 @@ void moveRollMotorFunc(void *argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-int _write(int file, char *ptr, int len)
-{
-  xPrintfMessage xIncommingMessage;
-
-  len = MIN(len, MAX_MESSAGE_LEN)+1; //+1 to '\0'
-  xIncommingMessage.iMessageLen = len;
-  strncpy(xIncommingMessage.pMessageBuffer, ptr, len);
-  xIncommingMessage.pMessageBuffer[len] = '\0';
-  osMessageQueuePut(printfQueueHandle, &xIncommingMessage, 0x0, 100);
-  return len;
-}
-
-void step(int steps, uint8_t direction, uint16_t delay, GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
-{
-  int x;
-
-  HAL_GPIO_WritePin(GPIOx, GPIO_Pin, !direction);
-  for(x=0; x<steps; x=x+1)
-  {
-    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 1);
-    microDelay(delay);
-    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 0);
-    microDelay(delay);
-  }
-}
-
-void microDelay (uint16_t delay)
-{
-  int a = 0;
-  __HAL_TIM_SET_COUNTER(&htim1, 0);
-  do{
-    a = __HAL_TIM_GET_COUNTER(&htim1);
-  }while (a < delay);
-}
-
 // *****************************************************    //
 // Method name: HAL_UART_RxCpltCallback                     //
 // Method description:  This method overrides the UART      //
@@ -655,6 +610,85 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     if(usBufferIndex > UART_BUFFER_SIZE - 1)
       usBufferIndex = 0;
   }
+}
+
+// *********************************************************//
+// Method name: step                                        //
+// Method description:  This method moves a given motor     //
+//                      a given amount of steps in a given  //
+//                      direction.                          //
+// Input params:        steps                               //
+//                      The amount of steps to move the     //
+//                      motor.                              //
+//                      direction                           //
+//                      The direction to move the motor     //
+//                      1 for clockwise, 0 for counter      //
+//                      clockwise.                          //
+//                      delay                               //
+//                      The delay between each step.        //
+//                      GPIOx                               //
+//                      The GPIO port of the motor.         //
+//                      GPIO_Pin                            //
+//                      The GPIO pin of the motor.          //
+// Output params:       n/a                                 //
+// *********************************************************//
+void step(int steps, uint8_t direction, uint16_t delay, GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
+{
+  int x;
+
+  HAL_GPIO_WritePin(GPIOx, GPIO_Pin, !direction);
+  for(x=0; x<steps; x=x+1)
+  {
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 1);
+    microDelay(delay);
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 0);
+    microDelay(delay);
+  }
+}
+
+// *********************************************************//
+// Method name: microDelay                                  //
+// Method description:  This method creates a delay in      //
+//                      microseconds.                       //
+// Input params:        delay                               //
+//                      The delay in microseconds.          //
+// Output params:       n/a                                 //
+// *********************************************************//
+void microDelay (uint16_t delay)
+{
+  int a = 0;
+  __HAL_TIM_SET_COUNTER(&htim1, 0);
+  do{
+    a = __HAL_TIM_GET_COUNTER(&htim1);
+  }while (a < delay);
+}
+
+
+// *********************************************************//
+// Method name: _write                                      //
+// Method description:  This method overrides the write     //
+//                      method, which is used by printf.    //
+//                      It sends the message to the         //
+//                      printfQueue.                        //
+// Input params:        file                                //
+//                      The file to write to.               //
+//                      ptr                                 //
+//                      The pointer to the message.         //
+//                      len                                 //
+//                      The length of the message.          //
+// Output params:       len                                 //
+//                      The length of the message.          //
+// *********************************************************//
+int _write(int file, char *ptr, int len)
+{
+  xPrintfMessage xIncommingMessage;
+
+  len = MIN(len, MAX_MESSAGE_LEN)+1; //+1 to '\0'
+  xIncommingMessage.iMessageLen = len;
+  strncpy(xIncommingMessage.pMessageBuffer, ptr, len);
+  xIncommingMessage.pMessageBuffer[len] = '\0';
+  osMessageQueuePut(printfQueueHandle, &xIncommingMessage, 0x0, 100);
+  return len;
 }
 
 /* USER CODE END Application */
