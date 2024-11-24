@@ -212,6 +212,16 @@ osMessageQueueId_t printfQueueHandle;
 const osMessageQueueAttr_t printfQueue_attributes = {
   .name = "printfQueue"
 };
+/* Definitions for yawMotorNewAngle */
+osMessageQueueId_t yawMotorNewAngleHandle;
+const osMessageQueueAttr_t yawMotorNewAngle_attributes = {
+  .name = "yawMotorNewAngle"
+};
+/* Definitions for rollMotorNewAngle */
+osMessageQueueId_t rollMotorNewAngleHandle;
+const osMessageQueueAttr_t rollMotorNewAngle_attributes = {
+  .name = "rollMotorNewAngle"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -259,6 +269,12 @@ void MX_FREERTOS_Init(void) {
   /* Create the queue(s) */
   /* creation of printfQueue */
   printfQueueHandle = osMessageQueueNew (128, sizeof(printfMessage), &printfQueue_attributes);
+
+  /* creation of yawMotorNewAngle */
+  yawMotorNewAngleHandle = osMessageQueueNew (16, sizeof(uint16_t), &yawMotorNewAngle_attributes);
+
+  /* creation of rollMotorNewAngle */
+  rollMotorNewAngleHandle = osMessageQueueNew (16, sizeof(uint16_t), &rollMotorNewAngle_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -455,7 +471,7 @@ void writeSetpointFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END writeSetpointFunc */
 }
@@ -473,7 +489,7 @@ void readFromHostFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END readFromHostFunc */
 }
@@ -491,7 +507,7 @@ void readFromIMUFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END readFromIMUFunc */
 }
@@ -509,7 +525,7 @@ void updateControlFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END updateControlFunc */
 }
@@ -527,7 +543,7 @@ void writeToHostFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END writeToHostFunc */
 }
@@ -545,7 +561,7 @@ void convertSetpointToStepsFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END convertSetpointToStepsFunc */
 }
@@ -563,7 +579,7 @@ void sendToHostFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END sendToHostFunc */
 }
@@ -581,7 +597,7 @@ void moveYawMotorFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END moveYawMotorFunc */
 }
@@ -599,7 +615,7 @@ void moveRollMotorFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END moveRollMotorFunc */
 }
