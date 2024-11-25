@@ -32,20 +32,20 @@ void MPU6050_Initialization(void)
 {
   osDelay(50);
   uint8_t who_am_i = 0;
-  printf("Checking MPU6050...\n");
+  printf("Checking MPU6050...\r\n");
 
   MPU6050_Readbyte(MPU6050_WHO_AM_I, &who_am_i);
   if(who_am_i == 0x68)
   {
-    printf("MPU6050 who_am_i = 0x%02x...OK\n", who_am_i);
+    printf("MPU6050 who_am_i = 0x%02x...OK\r\n", who_am_i);
   }
   else
   {
     printf("ERROR!\n");
-    printf("MPU6050 who_am_i : 0x%02x should be 0x68\n", who_am_i);
+    printf("MPU6050 who_am_i : 0x%02x should be 0x68\r\n", who_am_i);
     while(1)
     {
-      printf("who am i error. Can not recognize mpu6050\n");
+      printf("who am i error. Can not recognize mpu6050\r\n");
       osDelay(100);
     }
   }
@@ -106,7 +106,7 @@ void MPU6050_Initialization(void)
   MPU6050_Writebyte(MPU6050_INT_ENABLE, DATA_RDY_EN);
   osDelay(50);
 
-  printf("MPU6050 setting is finished\n");
+  printf("MPU6050 setting is finished\r\n");
 }
 /*Get Raw Data from sensor*/
 void MPU6050_Get6AxisRawData(Struct_MPU6050* mpu6050)

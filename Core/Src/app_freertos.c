@@ -72,6 +72,7 @@ typedef xIMUData xJoystickData;
 /* USER CODE BEGIN PM */
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#define ABS(x) (((x) < 0) ? -(x) : (x))
 
 // matrix multiplication, we pass ret=A*x, wheere x is 3x1 and returns a 4x1 matrix: A is 4x3
 #define MATRIX_MULTIPLICATION(ret, A, x) \
@@ -222,6 +223,18 @@ void moveRollMotorFunc(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
+/* Hook prototypes */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
+
+/* USER CODE BEGIN 4 */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
+{
+   /* Run time stack overflow checking is performed if
+   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
+   called if a stack overflow is detected. */
+}
+/* USER CODE END 4 */
+
 /**
   * @brief  FreeRTOS initialization
   * @param  None
@@ -319,6 +332,15 @@ void MX_FREERTOS_Init(void) {
 void defaultTaskFunc(void *argument)
 {
   /* USER CODE BEGIN defaultTaskFunc */
+
+  for(int i = 0; i < 60; i++){
+    printf("\r\n");
+  }
+
+  printf("@@@@@@@@@@@@@@@@@@@@@@@@@\r\n");
+  printf("Booting...\r\n");
+  printf("@@@@@@@@@@@@@@@@@@@@@@@@@\r\n");
+  // HAL_UART_Transmit(&huart4, "1", 1, 100);
   
   /* Infinite loop */
   for(;;)
@@ -342,7 +364,7 @@ void BT_uart_func(void *argument)
   /* USER CODE BEGIN BT_uart_func */
 
   /* Infinite loop */
-  printf("\r\nbluetooth IS on\r\n");
+  printf("bluetooth IS on\r\n");
   for(;;)
   {
     HAL_UART_Receive_IT(&huart5, &ucUartInputChar, 1);
@@ -351,14 +373,40 @@ void BT_uart_func(void *argument)
     while ( usLastPrintedIndex != usBufferIndex ){
 
       printf("bluetooth int: ");
-      if ( ucUartInputBuffer[usLastPrintedIndex] == '0')
-        printf("KEY_RELEASED");
-      else
+      if ( ucUartInputBuffer[usLastPrintedIndex] == '0'){
+        printf("KEY_RELEASED\r\n");
+        // HAL_UART_Transmit(&huart4, "1", 1, 100);
+      }else{
         printf((char *) &( ucUartInputBuffer[usLastPrintedIndex] ));
+        printf("\r\n");
+        if ( ucUartInputBuffer[usLastPrintedIndex] == 'v'){
+          xJoystickDataIncoming.fYaw += 15;
+          osThreadFlagsSet(writeSetpointHandle, 0x1);
+        }
+        else if ( ucUartInputBuffer[usLastPrintedIndex] == 'b'){
+          xJoystickDataIncoming.fYaw += -15;
+          osThreadFlagsSet(writeSetpointHandle, 0x1);
+        }
+        else if ( ucUartInputBuffer[usLastPrintedIndex] == 'w'){
+          xJoystickDataIncoming.fPitch += 15;
+          osThreadFlagsSet(writeSetpointHandle, 0x1);
+        }
+        else if ( ucUartInputBuffer[usLastPrintedIndex] == 's'){
+          xJoystickDataIncoming.fPitch += -15;
+          osThreadFlagsSet(writeSetpointHandle, 0x1);
+        }
+        else if ( ucUartInputBuffer[usLastPrintedIndex] == 'a'){
+          xJoystickDataIncoming.fRoll += 15;
+          osThreadFlagsSet(writeSetpointHandle, 0x1);
+        }
+        else if ( ucUartInputBuffer[usLastPrintedIndex] == 'd'){
+          xJoystickDataIncoming.fRoll += -15;
+          osThreadFlagsSet(writeSetpointHandle, 0x1);
+        }
+      }
       usLastPrintedIndex++;
 
 
-      printf("\r\n");
       if (usLastPrintedIndex >  UART_BUFFER_SIZE - 1)
         usLastPrintedIndex = 0;
     }
@@ -419,6 +467,8 @@ void writeSetpointFunc(void *argument)
       xSetpointData.fYaw = xJoystickDataIncoming.fYaw;
       xSetpointData.fRoll = xJoystickDataIncoming.fRoll;
       xSetpointData.fPitch = xJoystickDataIncoming.fPitch;
+      printf("setpoint upd joy\r\n");
+      osThreadFlagsSet(convertSetpointHandle, 0x1);
       
     }
     else if (uiThreadFlagsReturn == 0x10){
@@ -426,7 +476,9 @@ void writeSetpointFunc(void *argument)
       xSetpointData.iDataFromJoystick = 0;
       xSetpointData.fYaw = xHostData.fYaw;
       xSetpointData.fRoll = xHostData.fRoll;
-      xSetpointData.fPitch = xHostData.fPitch;      
+      xSetpointData.fPitch = xHostData.fPitch;
+      printf("setpoint upd ros\r\n");
+      osThreadFlagsSet(convertSetpointHandle, 0x1);
     }
     osDelay(4);
   }
@@ -449,6 +501,7 @@ void readFromHostFunc(void *argument)
   {
     // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
     osDelay(DEFAULT_OSDELAY_LOOP);
+    osDelay(1 << 30);
   }
   /* USER CODE END readFromHostFunc */
 }
@@ -468,6 +521,7 @@ void readFromIMUFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    //osDelay(1 << 30);
     // IMUshouldUpdate semaphore is set to 1 when the IMU has new data
     if (osSemaphoreAcquire(IMUshouldUpdateHandle, 0) == osOK){
       MPU6050_ProcessData(&MPU6050);
@@ -506,6 +560,7 @@ void updateControlFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    //osDelay(1 << 30);
     if (osMessageQueueGet(IMUdataHandle, &xIMUDataIncoming, 0x0, 100) == osOK){
       xError[0] = xSetpointData.fYaw - xIMUDataIncoming.fYaw;
       xError[1] = xSetpointData.fRoll - xIMUDataIncoming.fRoll;
@@ -549,24 +604,48 @@ void convertSetpointToStepsFunc(void *argument)
   /* USER CODE BEGIN convertSetpointToStepsFunc */
   // we know that  25 steps equals 45 degrees of the motor
   // a full rotation is 45 degrees * 8 = 360 degrees
-  // but the gear diameter ratio is 1.5cm at motor to 8cm at IMU
-  float fGearDiameterRatio = 8/1.5;
-  float fMotorStepsToIMUFullRotation = 25 * fGearDiameterRatio;
+  // but the gear diameter ratio is 1.6cm at motor to 8cm at IMU
+  float fGearDiameterRatio = 8/1.6;
+  float fMotorStepsToIMUFullRotation = 25 * fGearDiameterRatio / 45;
   xIMUData xIMUDataPrevious = {0, 0, 0};
   float fNewAngleYaw = 0;
   float fNewAngleRoll = 0;
+  // int iNewAngleYaw = 0;
+  // int iNewAngleRoll = 0;
+  int iDiffYaw = 0;
+  int iDiffRoll = 0;
 
 
   /* Infinite loop */
   for(;;)
   {
+    //osDelay(1 << 30);
     // wait thread flag to be set to 1
-    if (osThreadFlagsWait(0x1, 0x11, 1000) == 0x1){
+    if (osThreadFlagsWait(0x1, 0x1, 1000) == 0x1){
+      printf("setpoint conv called\r\n");
       // amount of steps to move the motor is the difference between the new angle and the previous angle
       // divided by the amount of steps to move the IMU a full rotation
       // we add to rollMotorNewAngleHandle and yawMotorNewAngleHandle
-      fNewAngleYaw = (xSetpointData.fYaw - xIMUDataPrevious.fYaw) / fMotorStepsToIMUFullRotation;
-      fNewAngleRoll = (xSetpointData.fRoll - xIMUDataPrevious.fRoll) / fMotorStepsToIMUFullRotation;
+      fNewAngleYaw = (xSetpointData.fYaw - xIMUDataPrevious.fYaw) * fMotorStepsToIMUFullRotation;
+      fNewAngleRoll = (xSetpointData.fRoll - xIMUDataPrevious.fRoll) * fMotorStepsToIMUFullRotation;
+      
+      iDiffYaw = (int) (xSetpointData.fYaw - xIMUDataPrevious.fYaw);
+      iDiffRoll = (int) (xSetpointData.fRoll - xIMUDataPrevious.fRoll);
+      printf("the diff from data and dataprev is");
+      printf("%d %d\r\n", iDiffYaw, iDiffRoll);
+      
+      iDiffYaw = iDiffYaw * fMotorStepsToIMUFullRotation;
+      iDiffRoll = iDiffRoll * fMotorStepsToIMUFullRotation;
+      printf("the amount of steps is");
+      printf("%d %d\r\n", iDiffYaw, iDiffRoll);
+
+
+      // iNewAngleYaw = (int) fNewAngleYaw;
+      // iNewAngleRoll = (int) fNewAngleRoll;
+
+      // printf("- new angle yaw : %d\r\n", iNewAngleYaw);
+      // printf("- new angle roll: %d\r\n", iNewAngleRoll);
+
       osMessageQueuePut(yawMotorNewAngleHandle, & fNewAngleYaw, 0, 100);
       osMessageQueuePut(rollMotorNewAngleHandle, & fNewAngleRoll, 0, 100);
 
@@ -593,6 +672,7 @@ void sendToHostFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    osDelay(1 << 30);
     // if thread flag is set to 1, send data to host
     if (osThreadFlagsWait(0x1, 0x11, 1000) == 0x1){
       // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
@@ -617,7 +697,8 @@ void moveYawMotorFunc(void *argument)
   for(;;)
   {
     if (osMessageQueueGet(yawMotorNewAngleHandle, &fNewSteps, 0x0, 100) == osOK){
-      step(fNewSteps, fNewSteps>0?1:0, STEP_MOTOR_MICRODELAY, M2_pin2_GPIO_Port, M2_pin2_Pin);
+      // printf("yaw motor new angle: %f\r\n", fNewSteps);
+      step(ABS(fNewSteps), fNewSteps>0?1:0, STEP_MOTOR_MICRODELAY, M2_pin2_GPIO_Port, M2_pin2_Pin);
     }
 
     osDelay(DEFAULT_OSDELAY_LOOP);
@@ -639,8 +720,10 @@ void moveRollMotorFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    //osDelay(1 << 30);
     if (osMessageQueueGet(rollMotorNewAngleHandle, &fNewSteps, 0x0, 100) == osOK){
-      step(fNewSteps, fNewSteps>0?1:0, STEP_MOTOR_MICRODELAY, M1_pin2_GPIO_Port, M1_pin2_Pin);
+      // printf("roll motor new angle: %f\r\n", fNewSteps);
+      step(ABS(fNewSteps), fNewSteps>0?1:0, STEP_MOTOR_MICRODELAY, M1_pin2_GPIO_Port, M1_pin2_Pin);
     }
 
     osDelay(DEFAULT_OSDELAY_LOOP);
@@ -672,6 +755,67 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 // *********************************************************//
+// Method name: vSendUARTstepCommand                        //
+// Method description:  This method sends a step command    //
+//                      to the UART. It is used to move the //
+//                      motor handler to another MCU. The   //
+//                      new MCU expects a byte in the fol-  //
+//                      lowing format:                      //
+//                      MSB: Motor, 0 for roll, 1 for yaw   //
+//                      2nd MSB: Direction, 0CW, 1CCW       //
+//                      3rd MSB: Steps, 0-64 steps.         //
+//                      If user need more steps, we need to //
+//                      send more commands.                 //
+// Input params:        steps                               //
+//                      The amount of steps to move the     //
+//                      motor.                              //
+//                      direction                           //
+//                      The direction to move the motor     //
+//                      1 for clockwise, 0 for counter      //
+//                      clockwise.                          //
+//                      delay                               //
+//                      The delay between each step.        //
+//                      GPIOx                               //
+//                      The GPIO port of the motor.         //
+//                      GPIO_Pin                            //
+//                      The GPIO pin of the motor.          //
+// Output params:       n/a                                 //
+// *********************************************************//
+void vSendUARTstepCommand(int iSteps, uint8_t direction, uint16_t delay, GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
+{
+  // The aux MCU uart is uart4, handler &huart4
+  // motorTx = PC10 = CN7 pin 1
+  // motorRx = PC11 = CN7 pin 2
+  char cCommand = 0;
+  char steps = 0;
+  printf("Sending command to motor\r\n");
+  // printf("Steps: %d, Direction: %d, Delay: %d, GPIOx: %d, GPIO_Pin: %d\r\n", iSteps, direction, delay, GPIOx, GPIO_Pin);
+
+  if (iSteps == 0)
+    return;
+
+  if (GPIOx == M1_pin2_GPIO_Port)
+    cCommand = 0b10000000;
+  else if (GPIOx == M2_pin2_GPIO_Port)
+    cCommand = 0b00000000;
+  else
+    return;
+  
+  cCommand = cCommand | (direction * 0b01000000);
+
+  while( iSteps > 0){
+    steps = iSteps > 32 ? 32 : iSteps;
+    iSteps = iSteps - steps;
+
+    cCommand = cCommand | steps;
+    HAL_UART_Transmit(&huart4, (uint8_t *) &cCommand, 1, 1);
+    // clear steps from cCommand, cCommand should keep the 1st and 2nd MSB, rest is zero
+    // the mask should be 0b11000000 = 0xC0
+    cCommand = cCommand & 0xC0;
+  }
+}
+
+// *********************************************************//
 // Method name: step                                        //
 // Method description:  This method moves a given motor     //
 //                      a given amount of steps in a given  //
@@ -693,16 +837,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 // *********************************************************//
 void step(int steps, uint8_t direction, uint16_t delay, GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
 {
-  int x;
+  // printf("step called need to move %d steps in direction %d with delay %d\r\n", steps, direction, delay);
+  return vSendUARTstepCommand(steps, direction, delay, GPIOx, GPIO_Pin);
+  // int x;
 
-  HAL_GPIO_WritePin(GPIOx, GPIO_Pin, !direction);
-  for(x=0; x<steps; x=x+1)
-  {
-    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 1);
-    microDelay(delay);
-    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 0);
-    microDelay(delay);
-  }
+  // HAL_GPIO_WritePin(GPIOx, GPIO_Pin, !direction);
+  // for(x=0; x<steps; x=x+1)
+  // {
+  //   HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 1);
+  //   microDelay(delay);
+  //   HAL_GPIO_WritePin(GPIOx, GPIO_Pin, 0);
+  //   microDelay(delay);
+  // }
 }
 
 // *********************************************************//
@@ -741,13 +887,37 @@ void microDelay (uint16_t delay)
 int _write(int file, char *ptr, int len)
 {
   xPrintfMessage xIncommingMessage;
+  int original_len = len;
+  int batch_len = 0;
 
-  len = MIN(len, MAX_MESSAGE_LEN)+1; //+1 to '\0'
-  xIncommingMessage.iMessageLen = len;
-  strncpy(xIncommingMessage.pMessageBuffer, ptr, len);
-  xIncommingMessage.pMessageBuffer[len] = '\0';
+  // if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)ptr, len,100) != HAL_OK){
+  //         Error_Handler();
+  // }
+
+if (len <= MAX_MESSAGE_LEN-1){
+  batch_len = MIN(len, MAX_MESSAGE_LEN-1); //+1 to '\0'
+  xIncommingMessage.iMessageLen = batch_len;
+  strncpy(xIncommingMessage.pMessageBuffer, ptr, batch_len);
+  xIncommingMessage.pMessageBuffer[batch_len] = '\0';
   osMessageQueuePut(printfQueueHandle, &xIncommingMessage, 0x0, 100);
-  return len;
+  }else{
+    while (len > MAX_MESSAGE_LEN-1){
+      batch_len = MIN(len, MAX_MESSAGE_LEN-1); //+1 to '\0'
+      xIncommingMessage.iMessageLen = batch_len;
+      strncpy(xIncommingMessage.pMessageBuffer, ptr, batch_len);
+      xIncommingMessage.pMessageBuffer[batch_len] = '\0';
+      osMessageQueuePut(printfQueueHandle, &xIncommingMessage, 0x0, 100);
+      ptr += batch_len;
+      len -= batch_len;
+    }
+    if (len > 0){
+      xIncommingMessage.iMessageLen = len;
+      strncpy(xIncommingMessage.pMessageBuffer, ptr, len);
+      xIncommingMessage.pMessageBuffer[len] = '\0';
+      osMessageQueuePut(printfQueueHandle, &xIncommingMessage, 0x0, 100);
+    }
+  }
+  return original_len;
 }
 
 /* USER CODE END Application */
