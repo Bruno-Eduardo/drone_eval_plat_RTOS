@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "main.h"
@@ -34,6 +35,9 @@
 
 #include "MPU6050.h"
 #include "CalculateAngle.h"
+
+
+#include "my_microROS_functions.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,7 +90,7 @@ typedef xIMUData xJoystickData;
 xSetpoint xSetpointData = {0, 0, 0, 0};
 xSetpoint xHostData = {0, 0, 0, 0};
 xJoystickData xJoystickDataIncoming = {0, 0, 0};
-float fMotorSpeeds[4] = {0, 0, 0, 0};
+float fMotorSpeeds[4] = {500, 500, 500, 500};
 
 unsigned char ucUartInputChar = '\0';
 unsigned short int usBufferIndex = 0;
@@ -323,9 +327,8 @@ void defaultTaskFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    // wait for 1^30 cycles
-    osDelay(1 << 30);
-
+    vMyMicroros();
+    osDelay(1000);
   }
   /* USER CODE END defaultTaskFunc */
 }
@@ -383,8 +386,8 @@ void printGateKeeperFunc(void *argument)
   {
 
     if (osMessageQueueGet(printfQueueHandle, &xIncommingMessage, 0x0, 10) == osOK){
-  //    if(HAL_UART_Transmit(&huart3,(uint8_t *)xIncommingMessage.message_buffer, xIncommingMessage.message_len, 100) != HAL_OK)
-      if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)xIncommingMessage.pMessageBuffer, xIncommingMessage.iMessageLen, 100) != HAL_OK){
+    	if(HAL_UART_Transmit(&huart3,(uint8_t *)xIncommingMessage.pMessageBuffer, xIncommingMessage.iMessageLen, 100) != HAL_OK){
+      //if(HAL_UART_Transmit(&hlpuart1,(uint8_t *)xIncommingMessage.pMessageBuffer, xIncommingMessage.iMessageLen, 100) != HAL_OK){
         Error_Handler();
       }
     }
@@ -444,10 +447,15 @@ void readFromHostFunc(void *argument)
 {
   /* USER CODE BEGIN readFromHostFunc */
     // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
+	xSetpoint xHostData = {0, 0, 0, 0};
+	float a_velocity[] = {5,10,100,500};
   /* Infinite loop */
   for(;;)
   {
     // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
+	osThreadFlagsWait(0x01, osFlagsWaitAll, osWaitForever);
+//	vSetActuatorMsg(a_velocity);
+//	HAL_GPIO_TogglePin(LD2_GPIO_Port , LD2_Pin);
     osDelay(DEFAULT_OSDELAY_LOOP);
   }
   /* USER CODE END readFromHostFunc */
@@ -502,10 +510,12 @@ void updateControlFunc(void *argument)
     {-1, -1, 1},
     {-1, 1, -1}
   };
-
+  float a_velocity[] = {500,500,500,500};
+  vSetActuatorMsg(a_velocity);
   /* Infinite loop */
   for(;;)
   {
+
     if (osMessageQueueGet(IMUdataHandle, &xIMUDataIncoming, 0x0, 100) == osOK){
       xError[0] = xSetpointData.fYaw - xIMUDataIncoming.fYaw;
       xError[1] = xSetpointData.fRoll - xIMUDataIncoming.fRoll;
@@ -590,7 +600,7 @@ void sendToHostFunc(void *argument)
 {
   /* USER CODE BEGIN sendToHostFunc */
   // IVAN CODE HERE <--------------------------------------------------------------------------------------------------------
-  /* Infinite loop */
+/* Infinite loop */
   for(;;)
   {
     // if thread flag is set to 1, send data to host
